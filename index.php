@@ -76,9 +76,9 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
                         ),
 
                         'rcf' => array(
-                            'title' => __('Código da regra de cálculo de frete', 'fretebarato_frete'),
+                            'title' => __('Customer ID', 'fretebarato_frete'),
                             'type' => 'text',
-                            'description' => __('Digite aqui o seu código da regra de cálculo de frete.', 'fretebarato_frete'),
+                            'description' => __('Digite aqui o seu Customer ID da API Frete Barato.', 'fretebarato_frete'),
                             'default' => ''
                         ),
 
