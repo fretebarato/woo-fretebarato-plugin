@@ -100,43 +100,73 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
                  */
                 public function calculate_shipping($package = array())
                 {
-                    //CART
-                    global $woocommerce;
-                    $FreteBarato_Frete_Shipping_Method = new FreteBarato_Frete_Shipping_Method();
-                    $amount = $woocommerce->cart->cart_contents_total;
-                    $weight = $woocommerce->cart->cart_contents_weight;
-                    $zipcode = $package['destination']['postcode'];
-                    $customer_code = $FreteBarato_Frete_Shipping_Method->settings['rcf'];
+                    // Validar se há configuração do Customer ID
+                    $customer_code = isset($this->settings['rcf']) ? $this->settings['rcf'] : '';
+                    
+                    if (empty($customer_code)) {
+                        return;
+                    }
+
+                    // Obter dados do carrinho
+                    $cart = WC()->cart;
+                    if (!$cart) {
+                        return;
+                    }
+
+                    $amount = $cart->get_cart_contents_total();
+                    $weight = $cart->get_cart_contents_weight();
+                    $zipcode = isset($package['destination']['postcode']) ? $package['destination']['postcode'] : '';
+                    
+                    if (empty($zipcode)) {
+                        return;
+                    }
+
                     $skus = array();
 
 
-                    foreach (WC()->cart->get_cart() as $cart_item) {
+                    foreach ($cart->get_cart() as $cart_item) {
+                        $product = $cart_item['data'];
+                        
                         $_produto = (object)array();
-                        $_produto->unidade_peso = get_option('woocommerce_weight_unit');
-                        $_produto->unidade_dimensao = get_option('woocommerce_dimension_unit');
-                        $_produto->name = $cart_item['data']->get_title();
+                        $_produto->unidade_peso = get_option('woocommerce_weight_unit', 'kg');
+                        $_produto->unidade_dimensao = get_option('woocommerce_dimension_unit', 'cm');
+                        $_produto->name = $product->get_name();
                         $_produto->quantity = $cart_item['quantity'];
-                        $_produto->price_unity = $cart_item['data']->get_price();
-                        $_produto->weight = $cart_item['data']->get_weight();
-                        $_produto->length = $cart_item['data']->get_length();
-                        $_produto->width = $cart_item['data']->get_width();
-                        $_produto->height = $cart_item['data']->get_height();
+                        $_produto->price_unity = $product->get_price();
+                        $_produto->weight = $product->get_weight() ? $product->get_weight() : 0;
+                        $_produto->length = $product->get_length() ? $product->get_length() : 0;
+                        $_produto->width = $product->get_width() ? $product->get_width() : 0;
+                        $_produto->height = $product->get_height() ? $product->get_height() : 0;
 
-                        $dimensoes = $cart_item['data']->get_dimensions();
-                        list($comprimento, $largura, $altura) = explode("&times;", $dimensoes);
-                        $_produto->dimensoes = $comprimento . "x" . $largura . "x" . str_replace(" cm", "", $altura);
+                        // Formatar dimensões de forma mais robusta
+                        $length = $_produto->length;
+                        $width = $_produto->width;
+                        $height = $_produto->height;
+                        $_produto->dimensoes = $length . "x" . $width . "x" . $height;
 
-                        array_push($skus, $_produto);
+                        $skus[] = $_produto;
                     }
 
                     $API = API_request_openlog($amount, $weight, $customer_code, $zipcode, $skus);
 
-                    foreach ($API->quotes as $shipping) {
-                        $this->add_rate(array(
-                            'id' => $shipping->quote_id,
-                            'label' => $shipping->name . ' - ' . 'Prazo: (' . $shipping->days . ($shipping->days <= 1 ? ' dia útil' : ' dias úteis') . ')',
-                            'cost' => $shipping->price
-                        ));
+                    // Validar resposta da API antes de processar
+                    if (isset($API->quotes) && is_array($API->quotes)) {
+                        foreach ($API->quotes as $shipping) {
+                            if (isset($shipping->quote_id) && isset($shipping->name) && isset($shipping->price)) {
+                                $days = isset($shipping->days) ? (int)$shipping->days : 0;
+                                $label = $shipping->name;
+                                
+                                if ($days > 0) {
+                                    $label .= ' - Prazo: (' . $days . ($days <= 1 ? ' dia útil' : ' dias úteis') . ')';
+                                }
+                                
+                                $this->add_rate(array(
+                                    'id' => $shipping->quote_id,
+                                    'label' => $label,
+                                    'cost' => floatval($shipping->price)
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -155,32 +185,37 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
 
     function fretebarato_frete_validate_order($posted)
     {
-
-        $packages = WC()->shipping->get_packages();
-
-        $chosen_methods = WC()->session->get('chosen_shipping_methods');
-
-        if (is_array($chosen_methods) && in_array('fretebarato_frete', $chosen_methods)) {
-
-            foreach ($packages as $i => $package) {
-
-                if ($chosen_methods[$i] != "fretebarato_frete") {
-
-                    continue;
-                }
-
-                $FreteBarato_Frete_Shipping_Method = new FreteBarato_Frete_Shipping_Method();
-            }
-        }
+        // Esta função está preparada para validações futuras
+        // Por enquanto, não há validações específicas necessárias
+        // A validação básica já é feita pelo WooCommerce
     }
 
     function API_request_openlog($amount, $weight, $customer_code, $zipcode, $skus)
     {
-        $oCollection = json_decode(json_encode(array('quotes' => [])));
+        // Inicializar resposta padrão
+        $oCollection = (object)array('quotes' => array());
+
+        // Validar parâmetros obrigatórios
+        if (empty($customer_code) || empty($zipcode)) {
+            return $oCollection;
+        }
+
+        // Sanitizar customer_code para URL
+        $customer_code = sanitize_text_field($customer_code);
+        $url = "https://admin.fretebarato.com/woocommerce/price/v1/json/" . urlencode($customer_code);
+
+        // Preparar dados para envio
+        $post_data = array(
+            'amount' => floatval($amount),
+            'peso' => floatval($weight),
+            'customer_code' => $customer_code,
+            'zipcode' => sanitize_text_field($zipcode),
+            'skus' => $skus
+        );
 
         $curl = curl_init();
         curl_setopt_array($curl, array(
-            CURLOPT_URL => "https://admin.fretebarato.com/woocommerce/price/v1/json/" . $customer_code,
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => "",
             CURLOPT_MAXREDIRS => 1,
@@ -189,23 +224,23 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
             CURLOPT_TIMEOUT => 10,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => "POST",
-            CURLOPT_POSTFIELDS => json_encode(array(
-                'amount' => $amount,
-                'peso' => $weight,
-                'customer_code' => $customer_code,
-                'zipcode' => $zipcode,
-                'skus' => $skus
-            ))
+            CURLOPT_POSTFIELDS => json_encode($post_data),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+            )
         ));
 
         $response = curl_exec($curl);
         $httpcode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($curl);
         curl_close($curl);
 
-        switch ($httpcode) {
-            case 200:
-                $oCollection = json_decode($response);
-                break;
+        // Processar resposta apenas se HTTP 200 e sem erros de cURL
+        if ($httpcode === 200 && $response !== false && empty($curl_error)) {
+            $decoded_response = json_decode($response);
+            if (json_last_error() === JSON_ERROR_NONE && is_object($decoded_response)) {
+                $oCollection = $decoded_response;
+            }
         }
 
         return $oCollection;
@@ -215,16 +250,56 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
     add_action('woocommerce_order_details_after_order_table', 'custom_order_details_after_order_table', 10, 1);
     function custom_order_details_after_order_table($order)
     {
-
-        $user_link = get_post_meta($order->id, '_user_link', true);
-
-        $FreteBarato_Frete_Shipping_Method = new FreteBarato_Frete_Shipping_Method();
-        $link = $FreteBarato_Frete_Shipping_Method->settings['link'] . $order->id;
-        $shipping_method = @array_shift($order->get_shipping_methods());
-        $shipping_method_id = $shipping_method['method_id'];
-
-        if ($shipping_method_id == "fretebarato_frete") {
-            echo '<p><b><a class="author-link" href="' . $link . '">' . __('Clique aqui para rastrear sua entrega. ') . '</a></b><p>';
+        // Validar se $order é um objeto válido
+        if (!is_a($order, 'WC_Order')) {
+            return;
         }
+
+        // Obter ID do pedido usando método compatível com WooCommerce 3.0+
+        // Usar get_id() para evitar acesso direto à propriedade (depreciado desde WC 3.0)
+        if (method_exists($order, 'get_id')) {
+            $order_id = $order->get_id();
+        } else {
+            // Fallback para versões antigas (antes de WC 3.0)
+            $order_id = isset($order->id) ? $order->id : 0;
+        }
+        
+        if (empty($order_id)) {
+            return;
+        }
+        
+        // Obter métodos de envio do pedido
+        $shipping_methods = $order->get_shipping_methods();
+        
+        if (empty($shipping_methods)) {
+            return;
+        }
+
+        // Verificar se algum método de envio é do Frete Barato
+        $is_fretebarato = false;
+        foreach ($shipping_methods as $shipping_method) {
+            if (isset($shipping_method['method_id']) && $shipping_method['method_id'] === 'fretebarato_frete') {
+                $is_fretebarato = true;
+                break;
+            }
+        }
+
+        if (!$is_fretebarato) {
+            return;
+        }
+
+        // Obter configurações do método de envio usando get_option (padrão WooCommerce)
+        $shipping_method_settings = get_option('woocommerce_fretebarato_frete_settings', array());
+        $tracking_link = isset($shipping_method_settings['link']) ? trim($shipping_method_settings['link']) : '';
+
+        if (empty($tracking_link)) {
+            return;
+        }
+
+        // Construir link de rastreio
+        $link = esc_url($tracking_link . $order_id);
+        $link_text = __('Clique aqui para rastrear sua entrega.', 'fretebarato_frete');
+
+        echo '<p><b><a class="author-link" href="' . esc_url($link) . '" target="_blank" rel="noopener">' . esc_html($link_text) . '</a></b></p>';
     }
 }
