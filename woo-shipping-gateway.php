@@ -1,0 +1,152 @@
+<?php
+/**
+ * Plugin Name: Frete Barato Shipping Gateway for WooCommerce
+ * Plugin URI: https://github.com/fretebarato/woo-fretebarato-plugin
+ * Description: Frete Barato para WooCommerce
+ * Author: Frete Barato
+ * Author URI: http://www.fretebarato.com
+ * Version: 2.1.22
+ * License: GPLv2 or later
+ * Text Domain: woo-shipping-gateway
+ * Domain Path: languages/
+ * Tested up to: 6.9
+ * Requires at least: 3.5
+ * WC tested up to: 10.4.3
+ * Tags: shipping, woocommerce, frete, gateway
+ */
+
+/**
+ * Informs WooCommerce that the plugin is compatible with the custom order tables feature.
+ */
+ add_action('before_woocommerce_init', function() {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+            'custom_order_tables',
+            __FILE__,
+            true
+        );
+    }
+});
+
+define( 'WOO_FRETEBARATO_PATH', plugin_dir_path( __FILE__ ) );
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit; // Exit if accessed directly.
+}
+
+if ( ! class_exists( 'WC_Fretebarato_Main' ) ) :
+
+    /**
+     * Frete Barato main class.
+     */
+    class WC_Fretebarato_Main {
+        /**
+         * Plugin version.
+         *
+         * @var string
+         */
+        const VERSION = '2.1.22';
+
+        /**
+         * Instance of this class.
+         *
+         * @var object
+         */
+        protected static $instance = null;
+
+        /**
+         * Initialize the plugin
+         */
+        private function __construct() {
+            add_action( 'init', array( $this, 'load_plugin_textdomain' ), -1 );
+
+            add_action( 'wp_ajax_ajax_simulator', array( 'WC_Fretebarato_Shipping_Simulator', 'ajax_simulator' ) );
+            add_action( 'wp_ajax_nopriv_ajax_simulator', array( 'WC_Fretebarato_Shipping_Simulator', 'ajax_simulator' ) );
+
+            // Checks with WooCommerce is installed.
+            if ( class_exists( 'WC_Integration' ) ) {
+                include_once WOO_FRETEBARATO_PATH . 'includes/class-wc-fretebarato.php';
+                include_once WOO_FRETEBARATO_PATH . 'includes/class-wc-fretebarato-helper.php';
+                include_once WOO_FRETEBARATO_PATH . 'includes/class-wc-fretebarato-shipping-simulator.php';
+
+                add_filter( 'woocommerce_shipping_methods', array( $this, 'wcfretebarato_add_method' ) );
+
+            } else {
+                add_action( 'admin_notices', array( $this, 'wcfretebarato_woocommerce_fallback_notice' ) );
+            }
+        }
+
+        /**
+         * Return an instance of this class.
+         *
+         * @return object A single instance of this class.
+         */
+        public static function get_instance() {
+            // If the single instance hasn't been set, set it now.
+            if ( null === self::$instance ) {
+                self::$instance = new self;
+            }
+
+            return self::$instance;
+        }
+
+        /**
+         * Load the plugin text domain for translation.
+         */
+        public function load_plugin_textdomain() {
+            load_plugin_textdomain( 'woo-shipping-gateway', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
+        }
+
+        /**
+         * Get main file.
+         *
+         * @return string
+         */
+        public static function get_main_file() {
+            return __FILE__;
+        }
+
+        /**
+         * Get plugin path.
+         *
+         * @return string
+         */
+        public static function get_plugin_path() {
+            return plugin_dir_path( __FILE__ );
+        }
+
+        /**
+         * Get templates path.
+         *
+         * @return string
+         */
+        public static function get_templates_path() {
+            return self::get_plugin_path() . 'templates/';
+        }
+
+        /**
+         * Add the Frete Barato to shipping methods.
+         *
+         * @param array $methods
+         *
+         * @return array
+         */
+        function wcfretebarato_add_method( $methods ) {
+            $methods['fretebarato'] = 'WC_Fretebarato';
+
+            return $methods;
+        }
+
+        function wcfretebarato_woocommerce_fallback_notice() {
+            ?>
+            <div class="notice notice-error is-dismissible">
+            <p><?php _e( 'FRETEBARATO: Instale o woocomerce para poder usar esta extensão' ); ?></p>
+            </div>
+            <?php
+        }
+
+    }
+
+    add_action( 'plugins_loaded', array( 'WC_Fretebarato_Main', 'get_instance' ) );
+
+endif;
