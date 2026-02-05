@@ -300,7 +300,7 @@ class WC_Fretebarato extends WC_Shipping_Method {
                     'label' => $label,
                     'cost' => $cost,
                     'meta_data' => array('FRETEBARATO_ID' => 'FB_ID_' . $service, 
-                                         'FRETEBARATO_SERVICE' => 'FB_SERVICE_' . $service, 
+                                         'FRETEBARATO_SERVICE' => 'FB_SER_' . $service, 
                                          'FRETEBARATO_NAME' => $label, 
                                          'FRETEBARATO_DAYS' => isset($quote->days) ? $quote->days : 0));
             }
