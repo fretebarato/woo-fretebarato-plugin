@@ -282,7 +282,8 @@ class WC_Fretebarato extends WC_Shipping_Method {
                     continue;
                 }
 
-                $label = $quote->name;
+                // O name já vem formatado do requestJson (ucfirst aplicado)
+                $label = ucfirst($quote->name);
                 $days = isset($quote->days) ? (int)$quote->days : 0;
                 
                 // Adicionar prazo ao label se display_date estiver habilitado
@@ -294,12 +295,14 @@ class WC_Fretebarato extends WC_Shipping_Method {
                 $service = isset($quote->service) ? $quote->service : $quote->name;
 
                 $rates[] = array(
-                    'id' => 'FRETEBARATO_' . $service . '_' . $quote_id,
+                    'id' => $quote_id,
                     'method_id' => $service,
                     'label' => $label,
                     'cost' => $cost,
-                    'meta_data' => array('FRETEBARATO_ID' => 'FRETEBARATO_' . $service . '_' . $quote_id)
-                );
+                    'meta_data' => array('FRETEBARATO_ID' => 'FB_ID_' . $service, 
+                                         'FRETEBARATO_SERVICE' => 'FB_SERVICE_' . $service, 
+                                         'FRETEBARATO_NAME' => $label, 
+                                         'FRETEBARATO_DAYS' => isset($quote->days) ? $quote->days : 0));
             }
 
             foreach ( $rates as $rate ) {
@@ -609,6 +612,14 @@ class WC_Fretebarato extends WC_Shipping_Method {
                     $this->log('AVISO: Quote sem campos obrigatórios (quote_id, name ou price)');
                 }
                 continue;
+            }
+
+            // Formatar nome da transportadora com ucfirst (primeira letra maiúscula, resto minúscula)
+            $quote->name = ucfirst(strtolower($quote->name));
+            
+            // Formatar service também se existir
+            if (isset($quote->service)) {
+                $quote->service = ucfirst(strtolower($quote->service));
             }
 
             $quote_id = (string) $quote->quote_id;
