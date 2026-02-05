@@ -299,7 +299,7 @@ class WC_Fretebarato extends WC_Shipping_Method {
                     'method_id' => $service,
                     'label' => $label,
                     'cost' => $cost,
-                    'meta_data' => array('FRETEBARATO_ID' => 'FB_ID_' . $service, 
+                    'meta_data' => array('FRETEBARATO_ID' => 'FB_' . $service, 
                                          'FRETEBARATO_SERVICE' => 'FB_SER_' . $service, 
                                          'FRETEBARATO_NAME' => $label, 
                                          'FRETEBARATO_DAYS' => isset($quote->days) ? $quote->days : 0));
@@ -619,7 +619,7 @@ class WC_Fretebarato extends WC_Shipping_Method {
             
             // Formatar service também se existir
             if (isset($quote->service)) {
-                $quote->service = ucfirst(strtolower($quote->service));
+                $quote->service = $quote->service;
             }
 
             $quote_id = (string) $quote->quote_id;
