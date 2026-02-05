@@ -162,6 +162,7 @@ if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_
                                 
                                 $this->add_rate(array(
                                     'id' => $shipping->quote_id,
+                                    'method_id' => $shipping->service,
                                     'label' => $label,
                                     'cost' => floatval($shipping->price)
                                 ));
