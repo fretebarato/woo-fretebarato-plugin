@@ -474,7 +474,7 @@ class WC_Fretebarato extends WC_Shipping_Method {
                 'zipcode' => $RecipientCEP,
                 'document' => '',
                 'amount' => $amount,
-                'sku' => $skus,
+                'skus' => $skus,
                 'country' => $RecipientCountry
             );
             $values = $this->requestJson($serviceParam, $values);
