@@ -430,6 +430,16 @@ class WC_Fretebarato extends WC_Shipping_Method {
                         $price = 0.0;
                     }
 
+                    $parent_id = absint( $product->get_parent_id() );
+                    $product_id = isset( $item_data['product_id'] ) ? absint( $item_data['product_id'] ) : ( $parent_id ? $parent_id : absint( $product->get_id() ) );
+                    $variation_id = isset( $item_data['variation_id'] ) ? absint( $item_data['variation_id'] ) : ( $parent_id ? absint( $product->get_id() ) : 0 );
+                    $parent_product = $parent_id ? wc_get_product( $parent_id ) : null;
+
+                    $sku = $product->get_sku();
+                    if ( '' === $sku && $parent_product ) {
+                        $sku = $parent_product->get_sku();
+                    }
+
                     // Calcular totais
                     $amount += $price * $qty;
                     $weight += $_weight * $qty;
@@ -438,6 +448,9 @@ class WC_Fretebarato extends WC_Shipping_Method {
                     $_produto = (object)array();
                     $_produto->unidade_peso = get_option('woocommerce_weight_unit', 'kg');
                     $_produto->unidade_dimensao = get_option('woocommerce_dimension_unit', 'cm');
+                    $_produto->sku = $sku;
+                    $_produto->product_id = $product_id;
+                    $_produto->variation_id = $variation_id;
                     $_produto->name = $product->get_name();
                     $_produto->quantity = $qty;
                     $_produto->price_unity = $price;
